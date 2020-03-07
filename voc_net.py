@@ -4,7 +4,7 @@ import tensorflow as tf
 import numpy as np
 import cv2
 import warnings
-import test
+# import test
 warnings.filterwarnings('ignore')
 
 
@@ -66,7 +66,7 @@ n_params = n_params + 3*3*16*32 + 32*4
 max2 = max_pool_layer(o2,kernel_size=2,stride=2,padding='VALID')
 # NOTE: the maxpool layer does not have parameters!
 
-#5 conv     64  3 x 3 / 1   104 x 104 x  32   ->   104 x 104 x  64
+#5 conv3     64  3 x 3 / 1   104 x 104 x  32   ->   104 x 104 x  64
 w3 = weight_variable([3,3,32,64])
 b3 = bias_variable([64])
 h3 = tf.nn.conv2d(max2, w3, strides=[1, 1, 1, 1], padding='SAME') + b3

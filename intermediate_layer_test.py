@@ -1,7 +1,7 @@
 import tensorflow as tf
 import os
 import numpy as np
-import net
+# import net
 import weights_loader
 import cv2
 import warnings
@@ -95,7 +95,17 @@ def preprocessing(input_img_path,input_height,input_width):
 
   return image_array
 
-def intermediate_inference(sess,preprocessed_image):
+def intermediate_inference(sess,preprocessed_image, model='voc'):
+  if model is not 'voc' and model is not 'coco':
+    print("Model {} does not exist.".format(model))
+    return
+  
+  if model is 'voc':
+    import voc_net as net
+  else:
+    import coco_net as net
+    init_g = tf.global_variables_initializer()
+    sess.run(init_g)
 
   # Forward pass of the preprocessed image into the network defined in the net.py file
   predictions = sess.run(net.o1,feed_dict={net.x:preprocessed_image})
@@ -108,45 +118,50 @@ def intermediate_inference(sess,preprocessed_image):
 def main(_):
 
 	# Definition of the paths
-    weights_path = './yolov2-tiny-voc.weights'
-    other_weights_path = './yolov2-tiny.weights'
-    input_img_path = './dog.jpg'
-    output_image_path = './output.jpg'
-    intermediate_output_image_path = './inter_output.jpg'
+  weights = 'coco'
+  if weights is 'voc':
+    import voc_net as net
+  else:
+    import coco_net as net
+  voc_paths = ['./yolov2-tiny-voc.weights']
+  coco_paths = ['./yolov2-tiny.weights']
+  input_img_path = './dog.jpg'
 
-    # If you do not have the checkpoint yet keep it like this! When you will run test.py for the first time it will be created automatically
-    ckpt_folder_path = './ckpt/'
+  # If you do not have the checkpoint yet keep it like this! When you will run test.py for the first time it will be created automatically
+  ckpt_folder_path = './ckpt/'
 
-    # Definition of the parameters
-    input_height = 416
-    input_width = 416
-    score_threshold = 0.3
-    iou_threshold = 0.3
+  # Definition of the parameters
+  input_height = 416
+  input_width = 416
+  
+  # Definition of the session
+  sess = tf.InteractiveSession()
+  tf.global_variables_initializer().run()
 
-    # Definition of the session
-    sess = tf.InteractiveSession()
-    tf.global_variables_initializer().run()
+  # Check for an existing checkpoint and load the weights (if it exists) or do it from binary file
+  # print('Looking for a checkpoint...')
+  saver = tf.train.Saver()
+  if weights is 'coco':
+    _ = weights_loader.load(sess,coco_paths[0],ckpt_folder_path,saver,'coco')
+  else:
+    _ = weights_loader.load(sess,voc_paths[0],ckpt_folder_path,saver,'voc')
 
-    # Check for an existing checkpoint and load the weights (if it exists) or do it from binary file
-    print('Looking for a checkpoint...')
-    saver = tf.train.Saver()
-    # _ = weights_loader.load(sess,other_weights_path,ckpt_folder_path,saver)
-    _ = weights_loader.load(sess,weights_path,ckpt_folder_path,saver)
+  # Preprocess the input image
+  print('Preprocessing...')
+  preprocessed_image = preprocessing(input_img_path,input_height,input_width)
 
-    # Preprocess the input image
-    print('Preprocessing...')
-    preprocessed_image = preprocessing(input_img_path,input_height,input_width)
-
-    # Compute the predictions on the input image
-    print('Computing predictions...')
-    predictions = intermediate_inference(sess,preprocessed_image)
-    inter_predictions = predictions[0, :, :, 0]
+  # Compute the predictions on the input image
+  print('Computing predictions...')
+  predictions = intermediate_inference(sess,preprocessed_image, weights)
+  for i in range(16):
+    inter_predictions = predictions[0, :, :, i]
     inter_predictions = inter_predictions + abs(np.amin(inter_predictions))
     inter_predictions = inter_predictions / np.amax(inter_predictions)
     inter_predictions *= 255
-    print(inter_predictions[:6, :6])
-    print(np.amin(inter_predictions), np.amax(inter_predictions))
-    cv2.imwrite(intermediate_output_image_path,inter_predictions)
+    if weights is 'coco':
+      cv2.imwrite('cocos/img'+str(i)+".jpg",inter_predictions)
+    else:
+      cv2.imwrite('vocs/img'+str(i)+".jpg",inter_predictions)
 
 
 if __name__ == '__main__':

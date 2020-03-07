@@ -2,8 +2,8 @@ import tensorflow as tf
 import os
 import numpy as np
 import os.path
-import test
-import net
+# import test
+# import net
 
 
 # IMPORTANT: Weights order in the binary file is [ 'biases','gamma','moving_mean','moving_variance','kernel']
@@ -11,10 +11,11 @@ import net
 # IMPORTANT: the biases added after the conv2d are set to zero! 
 # IMPORTANT: to use the weights they actually need to be de-normalized because of the Batch Normalization! ( see later )
 
-def load_conv_layer_bn(name,loaded_weights,shape,offset):
+def load_conv_layer_bn(name,loaded_weights,shape,offset, net):
     # Conv layer with Batch norm
 
     n_kernel_weights = shape[0]*shape[1]*shape[2]*shape[3]
+    print("Calculated Kernel Weight:", n_kernel_weights, "Shape:", shape)
     n_output_channels = shape[-1]
     n_bn_mean = n_output_channels
     n_bn_var = n_output_channels
@@ -42,6 +43,8 @@ def load_conv_layer_bn(name,loaded_weights,shape,offset):
     var = loaded_weights[offset:offset+n_bn_var]
     offset = offset + n_bn_var
     kernel_weights = loaded_weights[offset:offset+n_kernel_weights]
+    print("Offset:", offset, "Offset Bounds:", offset+n_kernel_weights, "Total Length:", len(loaded_weights))
+    print("Kernel Weights", len(kernel_weights), "Calculated Kernel Weight:", n_kernel_weights)
     offset = offset + n_kernel_weights
 
     # IMPORTANT: DarkNet conv_weights are serialized Caffe-style: (out_dim, in_dim, height, width)
@@ -83,17 +86,26 @@ def load_conv_layer(name,loaded_weights,shape,offset):
     return biases,kernel_weights,offset
 
 
-def load(sess,weights_path,ckpt_folder_path,saver):
+def load(sess,weights_path,ckpt_folder_path,saver,model='voc'):
+    if model is not 'voc' and model is not 'coco':
+        print("Model {} does not exist.".format(model))
+        return
 
-    if(os.path.exists(ckpt_folder_path)):
-        print('Found a checkpoint!') 
-        checkpoint_files_path = os.path.join(ckpt_folder_path,"model.ckpt")
-        saver.restore(sess,checkpoint_files_path)
-        print('Loaded weights from checkpoint!') 
-        return True
+    # if(os.path.exists(ckpt_folder_path)):
+    #     print('Found a checkpoint!') 
+    #     checkpoint_files_path = os.path.join(
+    #         ckpt_folder_path, model+"_model.ckpt")
+    #     saver.restore(sess,checkpoint_files_path)
+    #     print('Loaded weights from checkpoint!') 
+    #     return True
 
-    print('No checkpoint found!') 
-    print('Loading weights from file and creating new checkpoint...') 
+    # print('No checkpoint found!') 
+    # print('Loading weights from file and creating new checkpoint...') 
+
+    if model is 'voc':
+        import voc_net as net
+    else:
+        import coco_net as net
 
     # Get the size in bytes of the binary
     size = os.path.getsize(weights_path)
@@ -111,49 +123,60 @@ def load(sess,weights_path,ckpt_folder_path,saver):
 
     # Conv1 , 3x3, 3->16
     offset = 0
-    biases,kernel_weights,offset = load_conv_layer_bn('conv1',loaded_weights,[3,3,3,16],offset)
+    biases,kernel_weights,offset = load_conv_layer_bn('conv1',loaded_weights,[3,3,3,16],offset, net)
     sess.run(tf.assign(net.b1,biases))
     sess.run(tf.assign(net.w1,kernel_weights))
 
     # Conv2 , 3x3, 16->32
-    biases,kernel_weights,offset = load_conv_layer_bn('conv2',loaded_weights,[3,3,16,32],offset)
+    biases,kernel_weights,offset = load_conv_layer_bn('conv2',loaded_weights,[3,3,16,32],offset, net)
     sess.run(tf.assign(net.b2,biases))
     sess.run(tf.assign(net.w2,kernel_weights))
 
     # Conv3 , 3x3, 32->64
-    biases,kernel_weights,offset = load_conv_layer_bn('conv3',loaded_weights,[3,3,32,64],offset)
+    biases,kernel_weights,offset = load_conv_layer_bn('conv3',loaded_weights,[3,3,32,64],offset, net)
     sess.run(tf.assign(net.b3,biases))
     sess.run(tf.assign(net.w3,kernel_weights))
 
     # Conv4 , 3x3, 64->128
-    biases,kernel_weights,offset = load_conv_layer_bn('conv4',loaded_weights,[3,3,64,128],offset)
+    biases,kernel_weights,offset = load_conv_layer_bn('conv4',loaded_weights,[3,3,64,128],offset, net)
     sess.run(tf.assign(net.b4,biases))
     sess.run(tf.assign(net.w4,kernel_weights))
 
     # Conv5 , 3x3, 128->256
-    biases,kernel_weights,offset = load_conv_layer_bn('conv5',loaded_weights,[3,3,128,256],offset)
+    biases,kernel_weights,offset = load_conv_layer_bn('conv5',loaded_weights,[3,3,128,256],offset, net)
     sess.run(tf.assign(net.b5,biases))
     sess.run(tf.assign(net.w5,kernel_weights))
 
     # Conv6 , 3x3, 256->512
-    biases,kernel_weights,offset = load_conv_layer_bn('conv6',loaded_weights,[3,3,256,512],offset)
+    biases,kernel_weights,offset = load_conv_layer_bn('conv6',loaded_weights,[3,3,256,512],offset, net)
     sess.run(tf.assign(net.b6,biases))
     sess.run(tf.assign(net.w6,kernel_weights))
 
     # Conv7 , 3x3, 512->1024
-    biases,kernel_weights,offset = load_conv_layer_bn('conv7',loaded_weights,[3,3,512,1024],offset)
+    biases,kernel_weights,offset = load_conv_layer_bn('conv7',loaded_weights,[3,3,512,1024],offset, net)
     sess.run(tf.assign(net.b7,biases))
     sess.run(tf.assign(net.w7,kernel_weights))
 
-    # Conv8 , 3x3, 1024->1024
-    biases,kernel_weights,offset = load_conv_layer_bn('conv8',loaded_weights,[3,3,1024,1024],offset)
-    sess.run(tf.assign(net.b8,biases))
-    sess.run(tf.assign(net.w8,kernel_weights))
+    if model is 'voc':
+        # Conv8 , 3x3, 1024->1024
+        biases,kernel_weights,offset = load_conv_layer_bn('conv8',loaded_weights,[3,3,1024,1024],offset, net)
+        sess.run(tf.assign(net.b8,biases))
+        sess.run(tf.assign(net.w8,kernel_weights))
 
-    # Conv9 , 1x1, 1024->125
-    biases,kernel_weights,offset = load_conv_layer('conv9',loaded_weights,[1,1,1024,125],offset)
-    sess.run(tf.assign(net.b9,biases))
-    sess.run(tf.assign(net.w9,kernel_weights))
+        # Conv9 , 1x1, 1024->125
+        biases,kernel_weights,offset = load_conv_layer('conv9',loaded_weights,[1,1,1024,125],offset)
+        sess.run(tf.assign(net.b9,biases))
+        sess.run(tf.assign(net.w9,kernel_weights))
+    else:
+        # Conv8 , 3x3, 1024->512
+        biases,kernel_weights,offset = load_conv_layer_bn('conv8',loaded_weights,[3,3,1024,512],offset, net)
+        sess.run(tf.assign(net.b8,biases))
+        sess.run(tf.assign(net.w8,kernel_weights))
+
+        # Conv9 , 1x1, 1024->425
+        biases,kernel_weights,offset = load_conv_layer('conv9',loaded_weights,[1,1,512,425],offset)
+        sess.run(tf.assign(net.b9,biases))
+        sess.run(tf.assign(net.w9,kernel_weights))
 
     # These two numbers MUST be equal! 
     print('Final offset = {}'.format(offset))
@@ -161,10 +184,10 @@ def load(sess,weights_path,ckpt_folder_path,saver):
 
 
     # Saving checkpoint!
-    if not os.path.exists(ckpt_folder_path):
-        print('Saving new checkpoint to the new checkpoint directory ./ckpt/ !')
-        os.makedirs(ckpt_folder_path)
-        checkpoint_files_path = os.path.join(ckpt_folder_path, "model.ckpt")
-        saver.save(sess,checkpoint_files_path)
+    # if not os.path.exists(ckpt_folder_path):
+    #     print('Saving new checkpoint to the new checkpoint directory ./ckpt/ !')
+    #     os.makedirs(ckpt_folder_path)
+    #     checkpoint_files_path = os.path.join(ckpt_folder_path, model+"_model.ckpt")
+    #     saver.save(sess,checkpoint_files_path)
 
 #######################################################################################################################################
